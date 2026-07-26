@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -38,6 +40,7 @@ func run(args []string, _ io.Writer, stderr io.Writer) int {
 	stderrContains := flags.String("stderr-contains", "", "required stderr substring")
 	timeoutValue := flags.String("timeout", "", "per-command timeout")
 	confirmRunsValue := flags.String("confirm-runs", "1", "required confirmation runs")
+	outputPath := flags.String("output", "", "minimized JSON output path")
 
 	if err := flags.Parse(args[2:]); err != nil {
 		return 2
@@ -80,14 +83,23 @@ func run(args []string, _ io.Writer, stderr io.Writer) int {
 	}
 	spec.ConfirmRuns = confirmRuns
 
-	if _, err := reproslice.LoadJSON(inputPath); err != nil {
-		fmt.Fprintf(stderr, "load input %q: %v\n", inputPath, err)
-		return 1
+	if *outputPath == "" {
+		*outputPath = defaultOutputPath(inputPath)
 	}
 
-	candidate, err := os.ReadFile(inputPath)
+	sameFile, err := pathsReferToSameFile(inputPath, *outputPath)
 	if err != nil {
-		fmt.Fprintf(stderr, "read input %q: %v\n", inputPath, err)
+		fmt.Fprintf(stderr, "validate output path %q: %v\n", *outputPath, err)
+		return 1
+	}
+	if sameFile {
+		fmt.Fprintln(stderr, "--output must not overwrite the input file")
+		return 2
+	}
+
+	original, err := reproslice.LoadJSON(inputPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "load input %q: %v\n", inputPath, err)
 		return 1
 	}
 
@@ -100,15 +112,84 @@ func run(args []string, _ io.Writer, stderr io.Writer) int {
 		spec.Timeout = timeout
 	}
 
-	if err := reproslice.VerifyOriginal(
+	reduced, err := reproslice.Reduce(
 		context.Background(),
+		original,
 		*command,
-		candidate,
 		spec,
-	); err != nil {
+	)
+	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
 
+	if err := writeJSONFile(*outputPath, reduced); err != nil {
+		fmt.Fprintf(stderr, "write output %q: %v\n", *outputPath, err)
+		return 1
+	}
+
 	return 0
+}
+
+func pathsReferToSameFile(firstPath, secondPath string) (bool, error) {
+	firstAbsolute, err := filepath.Abs(firstPath)
+	if err != nil {
+		return false, err
+	}
+
+	secondAbsolute, err := filepath.Abs(secondPath)
+	if err != nil {
+		return false, err
+	}
+
+	if firstAbsolute == secondAbsolute {
+		return true, nil
+	}
+
+	firstInfo, err := os.Stat(firstAbsolute)
+	if err != nil {
+		return false, err
+	}
+
+	secondInfo, err := os.Stat(secondAbsolute)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	return os.SameFile(firstInfo, secondInfo), nil
+}
+
+func defaultOutputPath(inputPath string) string {
+	extension := filepath.Ext(inputPath)
+	base := inputPath[:len(inputPath)-len(extension)]
+	return base + ".min.json"
+}
+
+func writeJSONFile(path string, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(path)
+	file, err := os.CreateTemp(dir, "."+filepath.Base(path)+"-*")
+	if err != nil {
+		return err
+	}
+
+	tempPath := file.Name()
+	defer os.Remove(tempPath)
+
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tempPath, path)
 }

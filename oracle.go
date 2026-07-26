@@ -64,18 +64,16 @@ type FailureSpec struct {
 	Timeout        time.Duration
 }
 
-func VerifyOriginal(
-	ctx context.Context,
-	command string,
-	candidate []byte,
-	spec FailureSpec,
-) error {
+func normalizeFailureSpec(spec FailureSpec) (failureSpec, int, error) {
 	confirmRuns := spec.ConfirmRuns
 	if confirmRuns == 0 {
 		confirmRuns = 1
 	}
 	if confirmRuns < 1 {
-		return fmt.Errorf("confirmation runs must be at least 1")
+		return failureSpec{}, 0, fmt.Errorf("confirmation runs must be at least 1")
+	}
+	if spec.Timeout < 0 {
+		return failureSpec{}, 0, fmt.Errorf("timeout must not be negative")
 	}
 
 	internalSpec := failureSpec{
@@ -83,9 +81,22 @@ func VerifyOriginal(
 		stdoutContains: spec.StdoutContains,
 		stderrContains: spec.StderrContains,
 	}
+	if err := validateFailureSpec(internalSpec); err != nil {
+		return failureSpec{}, 0, err
+	}
 
-	if spec.Timeout < 0 {
-		return fmt.Errorf("timeout must not be negative")
+	return internalSpec, confirmRuns, nil
+}
+
+func VerifyOriginal(
+	ctx context.Context,
+	command string,
+	candidate []byte,
+	spec FailureSpec,
+) error {
+	internalSpec, confirmRuns, err := normalizeFailureSpec(spec)
+	if err != nil {
+		return err
 	}
 
 	for run := 1; run <= confirmRuns; run++ {
