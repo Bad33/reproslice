@@ -6,7 +6,7 @@ It removes or simplifies parts of the JSON, executes a user-supplied command for
 
 ## Status
 
-ReproSlice is under active development toward `v0.1.0`.
+ReproSlice `v0.1.0` is released and available as a Go library and CLI.
 
 The initial release is intentionally JSON-only and has zero runtime dependencies outside the Go standard library.
 
