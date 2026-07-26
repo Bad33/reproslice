@@ -7,6 +7,8 @@ import (
 	"os"
 )
 
+// LoadJSON reads exactly one JSON value from path.
+// JSON numbers are preserved as json.Number values.
 func LoadJSON(path string) (any, error) {
 	file, err := os.Open(path)
 	if err != nil {

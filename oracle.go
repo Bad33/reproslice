@@ -56,12 +56,25 @@ func verifyOriginal(
 	return nil
 }
 
+// FailureSpec describes the externally observed failure a payload must reproduce.
+// When multiple matchers are set, all of them must match.
 type FailureSpec struct {
-	ExitCode       *int
+	// ExitCode requires the command to exit with this code when non-nil.
+	ExitCode *int
+
+	// StdoutContains requires standard output to contain this substring.
 	StdoutContains string
+
+	// StderrContains requires standard error to contain this substring.
 	StderrContains string
-	ConfirmRuns    int
-	Timeout        time.Duration
+
+	// ConfirmRuns is the number of consecutive matching runs required.
+	// A zero value defaults to one.
+	ConfirmRuns int
+
+	// Timeout is applied separately to every command run.
+	// A zero value disables the timeout.
+	Timeout time.Duration
 }
 
 func normalizeFailureSpec(spec FailureSpec) (failureSpec, int, error) {
@@ -88,6 +101,8 @@ func normalizeFailureSpec(spec FailureSpec) (failureSpec, int, error) {
 	return internalSpec, confirmRuns, nil
 }
 
+// VerifyOriginal confirms that candidate reproduces the failure described by spec.
+// The command must contain the {input} placeholder.
 func VerifyOriginal(
 	ctx context.Context,
 	command string,

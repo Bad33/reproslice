@@ -309,6 +309,9 @@ func reduceValue(
 	}
 }
 
+// Reduce minimizes original while preserving the failure described by spec.
+// It verifies the original payload before testing reduction candidates.
+// The command must contain the {input} placeholder.
 func Reduce(
 	ctx context.Context,
 	original any,
