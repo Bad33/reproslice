@@ -2,6 +2,7 @@ package reproslice
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -323,6 +324,8 @@ func Reduce(
 		return nil, fmt.Errorf("verify original payload: %w", err)
 	}
 
+	cache := make(map[[sha256.Size]byte]bool)
+
 	return reduceValue(
 		original,
 		func(candidate any) (bool, error) {
@@ -331,12 +334,23 @@ func Reduce(
 				return false, fmt.Errorf("encode candidate payload: %w", err)
 			}
 
-			return reproducesCommandFailure(
+			cacheKey := sha256.Sum256(encodedCandidate)
+			if result, exists := cache[cacheKey]; exists {
+				return result, nil
+			}
+
+			result, err := reproducesCommandFailure(
 				ctx,
 				command,
 				encodedCandidate,
 				spec,
 			)
+			if err != nil {
+				return false, err
+			}
+
+			cache[cacheKey] = result
+			return result, nil
 		},
 	)
 }
