@@ -1,5 +1,8 @@
 # ReproSlice
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/Bad33/reproslice.svg)](https://pkg.go.dev/github.com/Bad33/reproslice)
+[![GitHub Release](https://img.shields.io/github/v/release/Bad33/reproslice)](https://github.com/Bad33/reproslice/releases/latest)
+
 ReproSlice is a Go CLI and library that minimizes a failing JSON payload while preserving the same externally observed failure.
 
 It removes or simplifies parts of the JSON, executes a user-supplied command for each candidate, and keeps only changes that still match the requested failure.
