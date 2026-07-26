@@ -10,12 +10,12 @@ import (
 func TestLoadJSONMissingFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "missing.json")
 
-	_, err := loadJSON(path)
+	_, err := LoadJSON(path)
 	if err == nil {
-		t.Fatal("loadJSON() error = nil, want missing-file error")
+		t.Fatal("LoadJSON() error = nil, want missing-file error")
 	}
 	if !os.IsNotExist(err) {
-		t.Fatalf("loadJSON() error = %v, want error matching os.ErrNotExist", err)
+		t.Fatalf("LoadJSON() error = %v, want error matching os.ErrNotExist", err)
 	}
 }
 
@@ -25,17 +25,17 @@ func TestLoadJSONValidObject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := loadJSON(path)
+	got, err := LoadJSON(path)
 	if err != nil {
-		t.Fatalf("loadJSON() error = %v", err)
+		t.Fatalf("LoadJSON() error = %v", err)
 	}
 
 	object, ok := got.(map[string]any)
 	if !ok {
-		t.Fatalf("loadJSON() type = %T, want map[string]any", got)
+		t.Fatalf("LoadJSON() type = %T, want map[string]any", got)
 	}
 	if object["name"] != "reproslice" {
-		t.Fatalf(`loadJSON()["name"] = %v, want "reproslice"`, object["name"])
+		t.Fatalf(`LoadJSON()["name"] = %v, want "reproslice"`, object["name"])
 	}
 }
 
@@ -45,17 +45,17 @@ func TestLoadJSONPreservesNumber(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := loadJSON(path)
+	got, err := LoadJSON(path)
 	if err != nil {
-		t.Fatalf("loadJSON() error = %v", err)
+		t.Fatalf("LoadJSON() error = %v", err)
 	}
 
 	number, ok := got.(json.Number)
 	if !ok {
-		t.Fatalf("loadJSON() type = %T, want json.Number", got)
+		t.Fatalf("LoadJSON() type = %T, want json.Number", got)
 	}
 	if number.String() != "9007199254740993" {
-		t.Fatalf("loadJSON() number = %q, want %q", number, "9007199254740993")
+		t.Fatalf("LoadJSON() number = %q, want %q", number, "9007199254740993")
 	}
 }
 
@@ -76,8 +76,8 @@ func TestLoadJSONRejectsInvalidInput(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if _, err := loadJSON(path); err == nil {
-				t.Fatal("loadJSON() error = nil, want invalid-JSON error")
+			if _, err := LoadJSON(path); err == nil {
+				t.Fatal("LoadJSON() error = nil, want invalid-JSON error")
 			}
 		})
 	}

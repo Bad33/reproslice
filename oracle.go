@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 )
 
 type failureSpec struct {
@@ -50,6 +51,55 @@ func verifyOriginal(
 	}
 	if !matchesFailure(result, spec) {
 		return fmt.Errorf("original payload does not reproduce the expected failure")
+	}
+
+	return nil
+}
+
+type FailureSpec struct {
+	ExitCode       *int
+	StdoutContains string
+	StderrContains string
+	ConfirmRuns    int
+	Timeout        time.Duration
+}
+
+func VerifyOriginal(
+	ctx context.Context,
+	command string,
+	candidate []byte,
+	spec FailureSpec,
+) error {
+	confirmRuns := spec.ConfirmRuns
+	if confirmRuns == 0 {
+		confirmRuns = 1
+	}
+	if confirmRuns < 1 {
+		return fmt.Errorf("confirmation runs must be at least 1")
+	}
+
+	internalSpec := failureSpec{
+		exitCode:       spec.ExitCode,
+		stdoutContains: spec.StdoutContains,
+		stderrContains: spec.StderrContains,
+	}
+
+	if spec.Timeout < 0 {
+		return fmt.Errorf("timeout must not be negative")
+	}
+
+	for run := 1; run <= confirmRuns; run++ {
+		runCtx := ctx
+		cancel := func() {}
+		if spec.Timeout > 0 {
+			runCtx, cancel = context.WithTimeout(ctx, spec.Timeout)
+		}
+
+		err := verifyOriginal(runCtx, command, candidate, internalSpec)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("confirmation run %d of %d: %w", run, confirmRuns, err)
+		}
 	}
 
 	return nil

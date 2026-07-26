@@ -7,7 +7,7 @@ import (
 	"os"
 )
 
-func loadJSON(path string) (any, error) {
+func LoadJSON(path string) (any, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

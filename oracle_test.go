@@ -1,6 +1,12 @@
 package reproslice
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestMatchesFailureByExitCode(t *testing.T) {
 	expected := 7
@@ -165,5 +171,109 @@ func TestVerifyOriginalAcceptsMatchingFailure(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("verifyOriginal() error = %v, want nil", err)
+	}
+}
+
+func TestVerifyOriginalRunsRequiredConfirmations(t *testing.T) {
+	counterPath := filepath.Join(t.TempDir(), "count")
+	expectedExitCode := 7
+
+	command := `count=$(cat ` + shellQuote(counterPath) + ` 2>/dev/null || echo 0); ` +
+		`count=$((count + 1)); printf %s "$count" > ` + shellQuote(counterPath) + `; ` +
+		`printf "DiscountValueError" >&2; test -f {input}; exit 7`
+
+	err := VerifyOriginal(
+		t.Context(),
+		command,
+		[]byte(`{}`),
+		FailureSpec{
+			ExitCode:       &expectedExitCode,
+			StderrContains: "DiscountValueError",
+			ConfirmRuns:    3,
+		},
+	)
+	if err != nil {
+		t.Fatalf("VerifyOriginal() error = %v, want nil", err)
+	}
+
+	got, err := os.ReadFile(counterPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "3" {
+		t.Fatalf("command runs = %q, want %q", got, "3")
+	}
+}
+
+func TestVerifyOriginalDefaultsToOneConfirmation(t *testing.T) {
+	counterPath := filepath.Join(t.TempDir(), "count")
+	expectedExitCode := 7
+
+	command := `printf x >> ` + shellQuote(counterPath) + `; test -f {input}; exit 7`
+
+	err := VerifyOriginal(
+		t.Context(),
+		command,
+		[]byte(`{}`),
+		FailureSpec{ExitCode: &expectedExitCode},
+	)
+	if err != nil {
+		t.Fatalf("VerifyOriginal() error = %v, want nil", err)
+	}
+
+	got, err := os.ReadFile(counterPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "x" {
+		t.Fatalf("command runs = %q, want one run", got)
+	}
+}
+
+func TestVerifyOriginalRejectsInvalidExecutionSettings(t *testing.T) {
+	expectedExitCode := 7
+
+	tests := []struct {
+		name    string
+		spec    FailureSpec
+		wantErr string
+	}{
+		{
+			name: "negative confirmation runs",
+			spec: FailureSpec{
+				ExitCode:    &expectedExitCode,
+				ConfirmRuns: -1,
+			},
+			wantErr: "confirmation runs",
+		},
+		{
+			name: "negative timeout",
+			spec: FailureSpec{
+				ExitCode: &expectedExitCode,
+				Timeout:  -time.Second,
+			},
+			wantErr: "timeout",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := VerifyOriginal(
+				t.Context(),
+				`test -f {input}; exit 7`,
+				[]byte(`{}`),
+				test.spec,
+			)
+			if err == nil {
+				t.Fatal("VerifyOriginal() error = nil, want validation error")
+			}
+			if !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf(
+					"VerifyOriginal() error = %q, want message containing %q",
+					err,
+					test.wantErr,
+				)
+			}
+		})
 	}
 }
